@@ -1,17 +1,22 @@
 package main
 
 import (
-	"fmt"
+	"bytes"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"text/template"
+
+	"github.com/yuin/goldmark"
+	highlighting "github.com/yuin/goldmark-highlighting/v2"
 )
 
-func main() {  
+func main() {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /post/{slug}", PostHandler(FileReaded{}))
+	postTemplate := template.Must(template.ParseFiles("post.html"))
+	mux.HandleFunc("GET /post/{slug}", PostHandler(FileReaded{}, postTemplate))
 
 	err := http.ListenAndServe(":3030", mux)
 	if err != nil {
@@ -39,7 +44,21 @@ func (fr FileReaded) Read(slug string) (string, error) {
 	return string(b), nil
 }
 
-func PostHandler(sl SlugReader) http.HandlerFunc {
+type PostData struct {
+	Content string
+	Author  string
+	Title   string
+}
+
+func PostHandler(sl SlugReader, tpl *template.Template) http.HandlerFunc {
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			highlighting.NewHighlighting(
+				highlighting.WithStyle("dracula"),
+			),
+		),
+	)
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := r.PathValue("slug")
 		postmarkDown, err := sl.Read(slug)
@@ -47,7 +66,21 @@ func PostHandler(sl SlugReader) http.HandlerFunc {
 			http.Error(w, "Post not found", http.StatusNotFound)
 			return
 		}
-		fmt.Fprint(w, postmarkDown)
+
+		var buf bytes.Buffer
+		err = md.Convert([]byte(postmarkDown), &buf)
+		if err != nil {
+			panic(err)
+		}
+
+		err = tpl.Execute(w, PostData{
+			Content: buf.String(),
+			Author:  "Pavel",
+			Title:   "BlogNote",
+		})
+		if err != nil {
+			http.Error(w, "Error executing template", http.StatusInternalServerError)
+			return
+		}
 	}
 }
-
