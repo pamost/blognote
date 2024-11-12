@@ -1,4 +1,13 @@
-# Readers
++++
+title = "io.Reader interface"
+description = "Notes about io.Reader interface"
+date = 2024-11-12
+
+[author]
+name = "pamost"
+email = "pamost@yandex.ru"
++++
+
 The io package specifies the io.Reader interface, which represents the read end of a stream of data.
 The Go standard library contains many implementations of this interface, including files, network connections, compressors, ciphers, and others.
 The io.Reader interface has a Read method:

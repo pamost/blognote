@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"text/template"
+	"strings"
 
+	"github.com/adrg/frontmatter"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 )
@@ -45,20 +47,24 @@ func (fr FileReaded) Read(slug string) (string, error) {
 }
 
 type PostData struct {
-	Content string
-	Author  string
-	Title   string
+	Title   string `toml:"title"`
+	Author  Author `toml:"author"`
+	Content template.HTML
+}
+
+type Author struct {
+	Name  string `toml:"name"`
+	Email string `toml:"email"`
 }
 
 func PostHandler(sl SlugReader, tpl *template.Template) http.HandlerFunc {
-	md := goldmark.New(
+	mdRender := goldmark.New(
 		goldmark.WithExtensions(
 			highlighting.NewHighlighting(
 				highlighting.WithStyle("dracula"),
 			),
 		),
 	)
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := r.PathValue("slug")
 		postmarkDown, err := sl.Read(slug)
@@ -67,17 +73,21 @@ func PostHandler(sl SlugReader, tpl *template.Template) http.HandlerFunc {
 			return
 		}
 
+		var post PostData
+		remainingMd, err := frontmatter.Parse(strings.NewReader(postmarkDown), &post)
+		if err != nil {
+			http.Error(w, "Error parsing frontmatter", http.StatusInternalServerError)
+			return
+		}
+
 		var buf bytes.Buffer
-		err = md.Convert([]byte(postmarkDown), &buf)
+		err = mdRender.Convert([]byte(remainingMd), &buf)
 		if err != nil {
 			panic(err)
 		}
+		post.Content = template.HTML(buf.String())
 
-		err = tpl.Execute(w, PostData{
-			Content: buf.String(),
-			Author:  "Pavel",
-			Title:   "BlogNote",
-		})
+		err = tpl.Execute(w, post)
 		if err != nil {
 			http.Error(w, "Error executing template", http.StatusInternalServerError)
 			return

@@ -1,4 +1,12 @@
-# Functions
++++
+title = "Functions"
+description = "Notes about Functions"
+date = 2024-11-12
+
+[author]
+name = "pamost"
+email = "pamost@yandex.ru"
++++
 
 A function can take zero or more arguments.
 
